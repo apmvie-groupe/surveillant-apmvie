@@ -50,17 +50,35 @@ def construire_email(env, sujet, corps, pieces_jointes=None) -> EmailMessage:
     return m
 
 
+class ErreurEtape(Exception):
+    """Une erreur d'envoi d'e-mail, avec l'étape où elle s'est produite (jamais de mot de passe dedans)."""
+
+
+def _etape(nom, fonction, *args):
+    try:
+        return fonction(*args)
+    except smtplib.SMTPAuthenticationError as exc:
+        raise ErreurEtape(f"étape « {nom} » : Google refuse l'identifiant ou le mot de passe (code {exc.smtp_code})") from exc
+    except Exception as exc:
+        raise ErreurEtape(f"étape « {nom} » : {type(exc).__name__} : {exc}") from exc
+
+
 def _envoyer_sur(hote, port, utilisateur, mot_de_passe, message):
     contexte = ssl.create_default_context()
     if port == 465:
-        with smtplib.SMTP_SSL(hote, port, timeout=30, context=contexte) as smtp:
-            smtp.login(utilisateur, mot_de_passe)
-            smtp.send_message(message)
+        smtp = _etape("connexion chiffrée", smtplib.SMTP_SSL, hote, port, None, None, None, 30, None, contexte)
     else:
-        with smtplib.SMTP(hote, port, timeout=30) as smtp:
-            smtp.starttls(context=contexte)
-            smtp.login(utilisateur, mot_de_passe)
-            smtp.send_message(message)
+        smtp = _etape("connexion", smtplib.SMTP, hote, port, "", 30)
+    try:
+        if port != 465:
+            _etape("chiffrement STARTTLS", smtp.starttls, contexte)
+        _etape("identification", smtp.login, utilisateur, mot_de_passe)
+        _etape("envoi du message", smtp.send_message, message)
+    finally:
+        try:
+            smtp.close()
+        except Exception:
+            pass
 
 
 def envoyer_email(env, msg):
@@ -69,13 +87,16 @@ def envoyer_email(env, msg):
     utilisateur = env["SMTP_USER"]
     mot_de_passe = env["SMTP_PASSWORD"].replace(" ", "")  # Google affiche les mots de passe d'appli avec des espaces
     message = construire_email(env, msg["sujet"], msg["corps"], msg.get("pieces_jointes"))
+    print(f"E-mail : serveur {hote}, identifiant de {len(utilisateur)} caractères, mot de passe de {len(mot_de_passe)} caractères "
+          "(16 attendus pour un mot de passe d'application Google).")
     try:
         _envoyer_sur(hote, int(port_choisi or 465), utilisateur, mot_de_passe, message)
-    except (smtplib.SMTPServerDisconnected, ConnectionError, TimeoutError, ssl.SSLError) as exc:
-        if port_choisi:        # une porte choisie à la main n'est pas remplacée
+    except ErreurEtape as exc:
+        refuse = "Google refuse" in str(exc)
+        if port_choisi or refuse:      # une porte choisie à la main, ou un mot de passe refusé : l'autre porte n'y change rien
             raise
         # connexion coupée sur la porte 465 : on essaie l'autre porte de Gmail (587, chiffrement STARTTLS)
-        print(f"Porte 465 inutilisable ({type(exc).__name__}) : nouvel essai sur la porte 587.")
+        print(f"Porte 465 inutilisable ({exc}) : nouvel essai sur la porte 587.")
         _envoyer_sur(hote, 587, utilisateur, mot_de_passe, message)
 
 
