@@ -65,10 +65,11 @@ def _etape(nom, fonction, *args):
 
 def _envoyer_sur(hote, port, utilisateur, mot_de_passe, message):
     contexte = ssl.create_default_context()
+    # arguments toujours nommés : les versions récentes de Python (3.12 et plus) refusent les arguments « en vrac »
     if port == 465:
-        smtp = _etape("connexion chiffrée", smtplib.SMTP_SSL, hote, port, None, None, None, 30, None, contexte)
+        smtp = _etape("connexion chiffrée", lambda: smtplib.SMTP_SSL(hote, port, timeout=30, context=contexte))
     else:
-        smtp = _etape("connexion", smtplib.SMTP, hote, port, "", 30)
+        smtp = _etape("connexion", lambda: smtplib.SMTP(hote, port, timeout=30))
     try:
         if port != 465:
             _etape("chiffrement STARTTLS", smtp.starttls, contexte)
