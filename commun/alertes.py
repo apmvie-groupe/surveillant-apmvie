@@ -50,12 +50,7 @@ def construire_email(env, sujet, corps, pieces_jointes=None) -> EmailMessage:
     return m
 
 
-def envoyer_email(env, msg):
-    hote = env.get("SMTP_HOST") or "smtp.gmail.com"
-    port = int(env.get("SMTP_PORT") or 465)
-    utilisateur = env["SMTP_USER"]
-    mot_de_passe = env["SMTP_PASSWORD"].replace(" ", "")  # Google affiche les mots de passe d'appli avec des espaces
-    message = construire_email(env, msg["sujet"], msg["corps"], msg.get("pieces_jointes"))
+def _envoyer_sur(hote, port, utilisateur, mot_de_passe, message):
     contexte = ssl.create_default_context()
     if port == 465:
         with smtplib.SMTP_SSL(hote, port, timeout=30, context=contexte) as smtp:
@@ -66,6 +61,22 @@ def envoyer_email(env, msg):
             smtp.starttls(context=contexte)
             smtp.login(utilisateur, mot_de_passe)
             smtp.send_message(message)
+
+
+def envoyer_email(env, msg):
+    hote = env.get("SMTP_HOST") or "smtp.gmail.com"
+    port_choisi = env.get("SMTP_PORT")
+    utilisateur = env["SMTP_USER"]
+    mot_de_passe = env["SMTP_PASSWORD"].replace(" ", "")  # Google affiche les mots de passe d'appli avec des espaces
+    message = construire_email(env, msg["sujet"], msg["corps"], msg.get("pieces_jointes"))
+    try:
+        _envoyer_sur(hote, int(port_choisi or 465), utilisateur, mot_de_passe, message)
+    except (smtplib.SMTPServerDisconnected, ConnectionError, TimeoutError, ssl.SSLError) as exc:
+        if port_choisi:        # une porte choisie à la main n'est pas remplacée
+            raise
+        # connexion coupée sur la porte 465 : on essaie l'autre porte de Gmail (587, chiffrement STARTTLS)
+        print(f"Porte 465 inutilisable ({type(exc).__name__}) : nouvel essai sur la porte 587.")
+        _envoyer_sur(hote, 587, utilisateur, mot_de_passe, message)
 
 
 def envoyer_push(env, msg):
