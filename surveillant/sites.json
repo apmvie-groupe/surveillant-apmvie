@@ -1,0 +1,165 @@
+{
+  "_aide": "Registre des sites surveillés par le Groupe APMvie. Pour surveiller un nouveau site : copier un bloc, changer id/nom/url, mettre actif à true. Un site avec actif à false est ignoré (aucune alerte).",
+  "parametres": {
+    "timeout_s": 15,
+    "pause_nouvel_essai_s": 10,
+    "seuil_echecs": 2,
+    "ssl_alerte_jours": [
+      14,
+      7,
+      3
+    ],
+    "rappel_apres_min": 60,
+    "rappel_toutes_les_h": 6,
+    "lenteur_ms": 5000,
+    "fuseau": "Europe/Paris"
+  },
+  "sites": [
+    {
+      "id": "apmvie-livre",
+      "nom": "Site vitrine du livre",
+      "entreprise": "APMvie",
+      "url": "https://livre.agirpourmavie.com",
+      "actif": false,
+      "critique": true,
+      "mot_cle": "Agir pour ma vie",
+      "hebergeur": "OVH",
+      "reparation": "claude",
+      "note": "Adresse imprimée dans le livre et dans le QR code : elle ne doit jamais tomber. A ACTIVER quand le site est en ligne ; vérifier alors que le mot-clé est bien présent sur la page d'accueil."
+    },
+    {
+      "id": "apmvie-formation",
+      "nom": "Pages de paiement et espace élèves",
+      "entreprise": "APMvie",
+      "url": "https://formation.agirpourmavie.com",
+      "actif": false,
+      "critique": true,
+      "mot_cle": null,
+      "hebergeur": "Systeme.io",
+      "reparation": "plateforme",
+      "note": "A ACTIVER une fois le tunnel de vente créé dans Systeme.io : mettre l'adresse exacte de la page de paiement et un mot présent sur cette page (champ mot_cle)."
+    },
+    {
+      "id": "apmvie-domaine-com",
+      "nom": "Redirection agirpourmavie.com",
+      "entreprise": "APMvie",
+      "url": "https://agirpourmavie.com",
+      "redirige_vers": "https://livre.agirpourmavie.com",
+      "actif": false,
+      "critique": false,
+      "seuil_echecs": 3,
+      "hebergeur": "OVH",
+      "reparation": "domaine",
+      "note": "Domaine principal : doit mener au site vitrine du livre."
+    },
+    {
+      "id": "apmvie-domaine-fr",
+      "nom": "Redirection agirpourmavie.fr",
+      "entreprise": "APMvie",
+      "url": "https://agirpourmavie.fr",
+      "redirige_vers": "https://livre.agirpourmavie.com",
+      "actif": false,
+      "critique": false,
+      "seuil_echecs": 3,
+      "hebergeur": "OVH",
+      "reparation": "domaine"
+    },
+    {
+      "id": "apmvie-domaine-net",
+      "nom": "Redirection agirpourmavie.net",
+      "entreprise": "APMvie",
+      "url": "https://agirpourmavie.net",
+      "redirige_vers": "https://livre.agirpourmavie.com",
+      "actif": false,
+      "critique": false,
+      "seuil_echecs": 3,
+      "hebergeur": "OVH",
+      "reparation": "domaine"
+    },
+    {
+      "id": "apmvie-domaine-eu",
+      "nom": "Redirection agirpourmavie.eu",
+      "entreprise": "APMvie",
+      "url": "https://agirpourmavie.eu",
+      "redirige_vers": "https://livre.agirpourmavie.com",
+      "actif": false,
+      "critique": false,
+      "seuil_echecs": 3,
+      "hebergeur": "OVH",
+      "reparation": "domaine"
+    },
+    {
+      "id": "apmvie-livre-en",
+      "nom": "Site vitrine du livre (version anglaise)",
+      "entreprise": "APMvie",
+      "url": "https://book.agirpourmavie.com",
+      "actif": false,
+      "critique": false,
+      "mot_cle": null,
+      "hebergeur": "OVH",
+      "reparation": "claude",
+      "note": "Prévu pour plus tard (plan d'internationalisation). A activer quand la version anglaise est publiée."
+    }
+  ],
+  "domaines": [
+    {
+      "domaine": "agirpourmavie.com",
+      "actif": false,
+      "email": true,
+      "dkim": [
+        "google"
+      ],
+      "registrar": "OVH"
+    },
+    {
+      "domaine": "agirpourmavie.fr",
+      "actif": false,
+      "email": false,
+      "dkim": [],
+      "registrar": "OVH"
+    },
+    {
+      "domaine": "agirpourmavie.net",
+      "actif": false,
+      "email": false,
+      "dkim": [],
+      "registrar": "OVH"
+    },
+    {
+      "domaine": "agirpourmavie.eu",
+      "actif": false,
+      "email": false,
+      "dkim": [],
+      "registrar": "OVH"
+    }
+  ],
+  "_aide_domaines": "La veille technique quotidienne (vers 6 h) : expiration de chaque nom de domaine, réglages e-mail (SPF, DKIM, DMARC) pour ceux qui envoient des e-mails, changement suspect des réglages, liste anti-spam. Passer « actif » à true une fois le domaine acheté ; « dkim » : le sélecteur donné par le service d'e-mail (google pour Google Workspace).",
+  "parcours": [
+    {
+      "nom": "Achat de la formation",
+      "actif": false,
+      "etapes": [
+        {
+          "nom": "Page de vente",
+          "url": "https://formation.agirpourmavie.com",
+          "mot_cle": null
+        },
+        {
+          "nom": "Page de commande",
+          "url": "https://formation.agirpourmavie.com/commande",
+          "mot_cle": "payer"
+        }
+      ]
+    }
+  ],
+  "_aide_parcours": "Le parcours d'achat, étape par étape : chaque page doit répondre et contenir son mot-clé (par exemple « payer » sur la page de commande). Adresses exactes à remplir quand le tunnel Systeme.io existe.",
+  "qr": [
+    {
+      "nom": "QR code du livre",
+      "actif": false,
+      "url": "https://livre.agirpourmavie.com",
+      "destination": "https://livre.agirpourmavie.com"
+    }
+  ],
+  "_aide_qr": "Les adresses imprimées (QR code du livre, cartes de visite) : elles doivent marcher pour toujours."
+}

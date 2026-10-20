@@ -1,0 +1,53 @@
+name: Le Surveillant — veille technique
+
+# Une fois par jour à 6 h (heure de Paris) : noms de domaine, réglages e-mail, changements suspects, parcours d'achat,
+# liens cassés et QR code, lenteur, listes anti-spam. Le 1er du mois : le bilan de disponibilité du mois.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+      timezone: "Europe/Paris"
+  workflow_dispatch:
+
+concurrency:
+  group: surveillant-quotidien
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Récupérer le dossier
+        uses: actions/checkout@v4
+
+      - name: Veille technique
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 surveillant/veille_technique.py
+
+      - name: Enregistrer l'état
+        if: always()
+        run: |
+          git config user.name "agents-bot"
+          git config user.email "agents-bot@users.noreply.github.com"
+          # chemin par chemin : un dossier pas encore créé ne doit pas empêcher d'enregistrer le reste
+          for f in surveillant/veille_technique.json surveillant/rapports; do git add -A -- "$f" 2>/dev/null || true; done
+          if ! git diff --cached --quiet; then
+            git commit -m "Surveillant : veille technique"
+            # plusieurs agents enregistrent en même temps : si un autre vient de pousser, on reprend et on réessaie
+            ok=0
+            for essai in 1 2 3 4 5; do
+              if git pull --rebase && git push; then ok=1; break; fi
+              git rebase --abort 2>/dev/null || true
+              sleep $((essai * 7))
+            done
+            [ "$ok" = 1 ]
+          fi

@@ -1,0 +1,76 @@
+name: Surveillance des sites
+
+# Contrôle toutes les 5 minutes. GitHub peut parfois retarder un contrôle de quelques minutes :
+# c'est normal et sans conséquence grâce au filtre anti-fausse alerte.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+      timezone: "Europe/Paris"
+  workflow_dispatch:
+    inputs:
+      test_alerte:
+        description: "Envoyer une alerte de test sur tous les canaux (e-mail, push, SMS)"
+        type: boolean
+        default: false
+
+# Un seul contrôle à la fois, jamais deux en parallèle.
+concurrency:
+  group: surveillant
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  controle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Récupérer le dossier
+        uses: actions/checkout@v4
+
+      - name: Contrôler les sites
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          FREE_SMS_USER: ${{ secrets.FREE_SMS_USER }}
+          FREE_SMS_KEY: ${{ secrets.FREE_SMS_KEY }}
+        run: python3 surveillant/monitor.py ${{ inputs.test_alerte && '--test-alerte' || '' }}
+
+      # Signal de vie : un service extérieur gratuit te prévient s'il ne reçoit plus rien (Surveillant arrêté ou
+      # GitHub en panne). Rien ne se passe tant que le secret SIGNAL_DE_VIE_SURVEILLANT n'est pas créé.
+      - name: Signal de vie
+        if: always()
+        env:
+          SIGNAL: ${{ secrets.SIGNAL_DE_VIE_SURVEILLANT }}
+          RESULTAT: ${{ job.status }}
+        run: |
+          if [ -n "$SIGNAL" ]; then
+            if [ "$RESULTAT" = "success" ]; then curl -fsS -m 10 --retry 3 "$SIGNAL" > /dev/null || true
+            else curl -fsS -m 10 --retry 3 "$SIGNAL/fail" > /dev/null || true; fi
+          fi
+
+      - name: Enregistrer l'état et le journal des pannes
+        if: always()
+        run: |
+          git config user.name "agents-bot"
+          git config user.email "agents-bot@users.noreply.github.com"
+          [ -f surveillant/state.json ] || echo '{"sites": {}}' > surveillant/state.json
+          touch surveillant/incidents.jsonl
+          # chemin par chemin : un dossier pas encore créé ne doit pas empêcher d'enregistrer le reste
+          for f in surveillant/state.json surveillant/incidents.jsonl; do git add -A -- "$f" 2>/dev/null || true; done
+          if ! git diff --cached --quiet; then
+            git commit -m "Surveillance : mise à jour de l'état"
+            # plusieurs agents enregistrent en même temps : si un autre vient de pousser, on reprend et on réessaie
+            ok=0
+            for essai in 1 2 3 4 5; do
+              if git pull --rebase && git push; then ok=1; break; fi
+              git rebase --abort 2>/dev/null || true
+              sleep $((essai * 7))
+            done
+            [ "$ok" = 1 ]
+          fi
